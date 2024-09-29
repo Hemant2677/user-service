@@ -12,7 +12,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	_ "github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
-
 )
 
 type User struct {
@@ -58,6 +57,7 @@ func GenerateJWT(email string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
 		return "", err
@@ -152,8 +152,7 @@ func getallusers(c *gin.Context) {
 
 	for rows.Next() {
 		var user User
-		if err := rows.Scan(&user.ID, &user.Name, &user.Age, &user.MobileNumber, &user.Email); 
-		err != nil {
+		if err := rows.Scan(&user.ID, &user.Name, &user.Age, &user.MobileNumber, &user.Email); err != nil {
 			c.JSON(http.StatusInternalServerError, map[string]any{"error": err.Error()})
 			return
 		}
@@ -215,8 +214,7 @@ func getbyid(c *gin.Context) {
 
 func newUser(c *gin.Context) {
 	var user User
-	if err := c.ShouldBindJSON(&user); 
-	err != nil {
+	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 
@@ -251,11 +249,11 @@ func login(c *gin.Context) {
 		return
 	}
 
-	row := db.QueryRow("SELECT * FROM users WHERE email=$1", user.Email,)
+	row := db.QueryRow("SELECT * FROM users WHERE email=$1", user.Email)
 	if err == sql.ErrNoRows {
-        c.JSON(http.StatusUnauthorized, map[string]any{"error": "Invalid email or password"})
-        return
-    }
+		c.JSON(http.StatusUnauthorized, map[string]any{"error": "Invalid email or password"})
+		return
+	}
 
 	var dbUser User
 	if err := row.Scan(&dbUser.ID, &dbUser.Name, &dbUser.Age, &dbUser.MobileNumber, &dbUser.Email, &dbUser.Password); err != nil {
@@ -268,8 +266,7 @@ func login(c *gin.Context) {
 	}
 
 	// Compare the hashed password with the one stored in the database
-	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password)); 
-	err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(user.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, map[string]any{"error": "Invalid email or password"})
 		return
 	}
