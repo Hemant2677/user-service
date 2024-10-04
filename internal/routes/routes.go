@@ -9,7 +9,7 @@ import (
 
 func SetupRoutes(r *gin.Engine) {
 	// Public routes
-	r.POST("/login", handlers.LoginHandler)
+	r.POST("/login", handlers.Login)
 	r.POST("/register", handlers.CreateUserHandler)
 
 	authGroup := r.Group("/")
@@ -17,4 +17,5 @@ func SetupRoutes(r *gin.Engine) {
 
 	authGroup.GET("/users", handlers.GetAllUsersHandler)
 	authGroup.GET("/users/:id", handlers.GetUserByIDHandler)
+	authGroup.PUT("/users/:id", handlers.UpdateUser)
 }

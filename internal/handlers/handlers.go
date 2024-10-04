@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 
 	"user-service/internal/database"
+	"user-service/internal/models"
 
 	"user-service/pkg/utils"
 
@@ -35,16 +35,15 @@ func CreateUserHandler(c *gin.Context) {
 		return
 	}
 
-	
-
 	// Call the database function to create a new user
-	userResponse, err := database.Createnewuser(&database.User{
+	user := models.User{
 		Name:         userRequest.Name,
 		Age:          userRequest.Age,
 		MobileNumber: userRequest.MobileNumber,
 		Email:        userRequest.Email,
 		Password:     userRequest.Password,
-	})
+	}
+	userResponse, err := database.Createnewuser(&user)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, map[string]any{"error": err.Error()})
 		return
@@ -59,37 +58,57 @@ func CreateUserHandler(c *gin.Context) {
 		Email:        userResponse.Email,
 	}
 
-
 	// Return the created user as JSON
 	c.JSON(http.StatusCreated,
-		map[string]any{"status": "sucesfull", "user": response})
+		map[string]any{"status": "successful", "user": response})
 }
 
-func LoginHandler(c *gin.Context) {
-	var userRequest struct {
-		Name         string `json:"name"`
-		Age          int    `json:"age"`
-		MobileNumber string `json:"mobile_number"`
-		Email        string `json:"email"`
-		Password     string `json:"password"`
-	}
+func Login(c *gin.Context) {
+	var loginRequest database.User
+	//      var err error
 
-	// Bind JSON request to user struct
-	if err := c.ShouldBindJSON(&userRequest); err != nil {
-		c.JSON(http.StatusBadRequest, map[string]any{"error": "Invalid input", "details": err.Error()})
+	if err := c.ShouldBindJSON(&loginRequest); err != nil {
+		c.JSON(http.StatusBadRequest, map[string]any{"error": "Invalid Request"})
 		return
 	}
 
-	// Generate a JWT token for the authenticated user
-	token, err := utils.GenerateJWT(userRequest.Email)
+	// Check if empty field
+	if loginRequest.Email == "" || loginRequest.Password == "" {
+		c.JSON(http.StatusBadRequest, map[string]any{"error": "Email and password are required"})
+		return
+	}
+
+	// Fetch the full user details, including the hashed password
+	user, err := database.FetchUserByEmail(loginRequest.Email)
 	if err != nil {
-		log.Printf("Error generating JWT token: %v", err)
-		c.JSON(http.StatusInternalServerError, map[string]any{"error": "Internal server error"})
+		c.JSON(http.StatusUnauthorized, map[string]any{"error": err.Error()})
 		return
 	}
 
-	// Return the JWT token
-	c.JSON(http.StatusOK, map[string]any{"token": token})
+	// Compare the provided password with the hashed password
+	err = utils.ComparePasswords(user.Password, loginRequest.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, map[string]any{"error": "invalid password"})
+		return
+	}
+
+	// Generate the JWT Token
+	token, err := utils.GenerateJWT(user.ID, user.Name, user.Email)
+	if err != nil {
+		c.JSON(
+			http.StatusInternalServerError,
+			map[string]any{"error": "Failed to generate JWT token"},
+		)
+		return
+	}
+
+	// Send the token as response
+	c.JSON(http.StatusOK, map[string]any{
+		"message": "Successfully logged in",
+		"token":   token,
+		"status":  "success",
+	})
+
 }
 
 func GetAllUsersHandler(c *gin.Context) {
@@ -147,4 +166,52 @@ func GetUserByIDHandler(c *gin.Context) {
 
 	// Return the user as JSON
 	c.JSON(http.StatusOK, map[string]any{"user": user})
+}
+
+// UpdateUser is the handler for updating user details
+func UpdateUser(c *gin.Context) {
+	// Extract token from the Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+		return
+	}
+
+	// Split the header to extract the token part
+	tokenString := authHeader
+
+	// Extract user info (ID, Name, Email) from token
+	userID, _, _, err := utils.ExtractUserInfo(tokenString)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		return
+	}
+
+	// Get the ID of the user being updated from the request path
+	paramID := c.Param("id") // Assuming the user ID is in the URL path, e.g., /users/:id
+	if paramID != strconv.Itoa(userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your own information"})
+		return
+	}
+
+	// Extract new details from the request body
+	var userRequest struct {
+		Name string `json:"name"`
+		Age  int    `json:"age"`
+	}
+
+	if err := c.ShouldBindJSON(&userRequest); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Proceed to update the user information in the database...
+
+	err = database.UpdateUserByID(userID, userRequest.Name, userRequest.Age)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
 }

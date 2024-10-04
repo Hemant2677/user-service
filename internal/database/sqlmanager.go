@@ -25,7 +25,6 @@ func init() {
 	fmt.Println("The database is connected")
 }
 
-// CreateUser creates a new user in the database
 func Getallusers(page int, limit int) ([]UserResponse, int, error) {
 	if page < 1 {
 		return nil, 0, fmt.Errorf("invalid page number")
@@ -87,4 +86,56 @@ func Getuserbyid(id string) (*UserResponse, error) {
 	}
 
 	return &user, nil
+}
+
+func FetchPassword(email string) (string, error) {
+
+	query := "SELECT password FROM users WHERE email = $1"
+
+	// execute the query
+	row := Db.QueryRow(query, email)
+
+	// create a new user struct
+	var user User
+
+	// scan the row into the user struct
+	err := row.Scan(&user.Password)
+
+	// close the database connection
+	defer Db.Close()
+
+	// return the password and any error encountered
+	if err != nil {
+		return "", err
+	}
+	return user.Password, nil
+}
+
+func FetchPasswordHash(user User) (string, error) {
+	var storedHashedPassword string
+	err := Db.QueryRow("SELECT password FROM users where email=$1", user.Email).
+		Scan(&storedHashedPassword)
+	if err == sql.ErrNoRows {
+		return "", fmt.Errorf("invalid email or password")
+	} else if err != nil {
+		return "", fmt.Errorf("database error")
+	}
+	return storedHashedPassword, nil
+}
+
+func FetchUserByEmail(email string) (User, error) {
+	var user User
+
+	// Query to fetch the user's ID, Name, Email, and Password
+	query := "SELECT id, name, email, password FROM users WHERE email=$1"
+
+	err := Db.QueryRow(query, email).Scan(&user.ID, &user.Name, &user.Email, &user.Password)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return user, fmt.Errorf("user not found")
+		}
+		return user, err
+	}
+
+	return user, nil
 }

@@ -3,10 +3,10 @@ package utils
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"golang.org/x/crypto/bcrypt"
 )
 
 var jwtKey = []byte("your_secret_key")
@@ -20,24 +20,33 @@ func HashPassword(password string) string {
 }
 
 func ComparePasswords(hashedPassword, password string) error {
-	// Use bcrypt to compare the hashed password with the plain password
-	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-	if err != nil {
-		return err
+	// Create a new MD5 hash object
+	hash := md5.New()
+	// Write the password to the hash object
+	hash.Write([]byte(password))
+	// Get the hexadecimal representation of the hash
+	hashedInput := hex.EncodeToString(hash.Sum(nil))
+	// Compare the hashed input with the stored hashed password
+	if hashedInput != hashedPassword {
+		return fmt.Errorf("invalid password")
 	}
 	return nil
 }
 
 type Claims struct {
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
 	Email string `json:"email"`
 	jwt.RegisteredClaims
 }
 
 // GenerateJWT generates a JWT token for the user
-func GenerateJWT(email string) (string, error) {
+func GenerateJWT(ID int, Name string, Email string) (string, error) {
 	expirationTime := time.Now().Add(1 * time.Hour)
 	claims := Claims{
-		Email: email,
+		ID:    ID,
+		Name:  Name,
+		Email: Email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -55,18 +64,19 @@ func GenerateJWT(email string) (string, error) {
 
 // ValidateJWT validates the JWT token
 func ValidateJWT(tokenString string) (Claims, error) {
-    var claims Claims
-    token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
-        return jwtKey, nil
-    })
+	var claims Claims
+	token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
 
-    if err != nil {
-        return Claims{}, err
-    }
+	if err != nil {
+		return Claims{}, err
+	}
 
-    if !token.Valid {
-        return Claims{}, err
-    }
+	if !token.Valid {
+		return Claims{}, err
+	}
 
-    return claims, nil
+	return claims, nil
 }
+
