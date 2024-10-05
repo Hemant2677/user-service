@@ -36,7 +36,7 @@ type User struct {
 func Createnewuser(user *models.User) (*models.User, error) {
 	// Check if the user provided all the required fields
 	if user.Name == "" || user.Age == 0 || user.MobileNumber == "" || user.Email == "" || user.Password == "" {
-		return &models.User{}, fmt.Errorf("all fields are required")
+		return nil, fmt.Errorf("all fields are required")
 	}
 
 	// Check if the email already exists in the database
@@ -44,32 +44,32 @@ func Createnewuser(user *models.User) (*models.User, error) {
 	row := Db.QueryRow("SELECT id FROM users WHERE email=$1", user.Email)
 	err := row.Scan(&ID)
 	if err == nil {
-		return &models.User{}, fmt.Errorf("email already exists")
+		return nil, fmt.Errorf("email already exists")
 	}
 
 	// Check if the mobile number is already registered in the database
 	row = Db.QueryRow("SELECT id FROM users WHERE mobile_number=$1", user.MobileNumber)
 	err = row.Scan(&ID)
 	if err == nil {
-		return &models.User{}, fmt.Errorf("mobile number already registered")
+		return nil, fmt.Errorf("mobile number already registered")
 	}
 
 	// Validate the age range
 	if user.Age < 18 || user.Age > 100 {
-		return &models.User{}, fmt.Errorf("age should be between 18 and 100")
+		return nil, fmt.Errorf("age should be between 18 and 100")
 	}
 
 	// Hash the password and handle potential error
 	hashedPassword := utils.HashPassword(user.Password)
 	if hashedPassword == "" {
-		return &models.User{}, fmt.Errorf("failed to hash password")
+		return nil, fmt.Errorf("failed to hash password")
 	}
 
 	// Store the hashed password in the database
 	sqlStatement := `INSERT INTO users (name, age, mobile_number, email, password) VALUES ($1, $2, $3, $4, $5) RETURNING id;`
 	err = Db.QueryRow(sqlStatement, user.Name, user.Age, user.MobileNumber, user.Email, hashedPassword).Scan(&user.ID)
 	if err != nil {
-		return &models.User{}, fmt.Errorf("failed to insert user: %v", err)
+		return nil, fmt.Errorf("failed to insert user: %v", err)
 	}
 
 	newUserResponse := &models.User{
